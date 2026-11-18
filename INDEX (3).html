@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sales and Fuel Cost Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* Layout: sticky control bar, KPI row, 2-column chart grid, ranking, table. One dark colorful world. */
+:root{
+  color-scheme: dark;
+  --bg:#0c0a1f;
+  --panel:#16133a;
+  --panel-2:#1d1949;
+  --line:#2f2a6b;
+  --text:#f1efff;
+  --muted:#a9a4d8;
+  --cyan:#22d3ee;
+  --orange:#ff9f43;
+  --pink:#ff4fa3;
+  --lime:#a3e635;
+  --violet:#8b7cff;
+  --red:#ff5d6c;
+  --display:'Outfit', system-ui, sans-serif;
+  --body:'DM Sans', system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:
+    radial-gradient(900px 500px at 8% -5%, rgba(139,124,255,.28), transparent 60%),
+    radial-gradient(800px 500px at 95% 0%, rgba(255,79,163,.18), transparent 60%),
+    radial-gradient(700px 500px at 50% 110%, rgba(34,211,238,.16), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color:var(--text);
+  font-family:var(--body);
+  line-height:1.5;
+}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 20px 60px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,4.5vw,44px);margin:0;line-height:1.05;text-wrap:balance;
+  background:linear-gradient(90deg,var(--cyan),var(--violet) 50%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);margin:6px 0 0}
+.badge{font-family:var(--display);font-weight:700;font-size:13px;padding:6px 12px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);font-variant-numeric:tabular-nums}
+
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;min-width:84px}
+.chip{font:700 13px var(--display);padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;transition:.15s}
+.chip:hover{border-color:var(--violet);color:var(--text)}
+.chip[aria-pressed="true"]{background:linear-gradient(135deg,var(--violet),var(--pink));border-color:transparent;color:#fff}
+.chip:disabled{opacity:.35;cursor:not-allowed}
+.preset{border-style:dashed}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.slider{display:flex;align-items:center;gap:12px;flex:1;min-width:240px}
+input[type=range]{flex:1;accent-color:var(--pink)}
+.val{font:800 18px var(--display);color:var(--orange);min-width:56px;font-variant-numeric:tabular-nums}
+.addform{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.addform input,.addform select{background:var(--bg);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:10px;font:500 14px var(--body);width:140px}
+.addform select{width:100px}
+.btn{font:700 13px var(--display);padding:9px 14px;border-radius:10px;border:0;cursor:pointer;color:#0c0a1f;background:linear-gradient(135deg,var(--cyan),var(--lime))}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.msg{font-size:13px;color:var(--orange)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.kpi{border-radius:16px;padding:16px 18px;border:1px solid var(--line);background:var(--panel);position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:var(--c)}
+.kpi .k{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.kpi .n{font:800 clamp(22px,2.6vw,30px) var(--display);margin-top:4px;font-variant-numeric:tabular-nums;color:var(--c)}
+.kpi .d{font-size:13px;color:var(--muted);margin-top:2px}
+
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h2{font:700 18px var(--display);margin:0}
+.card p.note{margin:0;color:var(--muted);font-size:13px}
+.s12{grid-column:span 12}.s8{grid-column:span 8}.s7{grid-column:span 7}.s6{grid-column:span 6}.s5{grid-column:span 5}.s4{grid-column:span 4}
+.ch{position:relative;height:330px}
+.ch.tall{height:380px}
+.donut-wrap{position:relative;height:300px}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.donut-center b{font:800 34px var(--display);color:var(--orange);font-variant-numeric:tabular-nums}
+.donut-center span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.ins{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:14px}
+.ins b{display:block;font:700 13px var(--display);margin-bottom:4px;color:var(--c)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-variant-numeric:tabular-nums}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none}
+th:hover{color:var(--text)}
+th.sorted{color:var(--cyan)}
+tr:hover td{background:var(--panel-2)}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font:700 12px var(--display)}
+.ok{background:rgba(163,230,53,.15);color:var(--lime)}
+.hi{background:rgba(255,93,108,.18);color:var(--red)}
+.mid{background:rgba(255,159,67,.18);color:var(--orange)}
+.up{color:var(--lime)}.down{color:var(--red)}
+tfoot td{font-weight:700;border-bottom:0;color:var(--cyan)}
+footer{color:var(--muted);font-size:12px}
+
+@media (max-width:900px){
+  .s8,.s7,.s6,.s5,.s4{grid-column:span 12}
+  .ch,.ch.tall{height:300px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sales vs Fuel Cost</h1>
+      <p class="sub">Monthly analysis for January to October. Pick months, move the alert line, add November and December as they close.</p>
+    </div>
+    <div class="badge" id="rangeBadge"></div>
+  </header>
+
+  <section class="controls" aria-label="Controls">
+    <div class="row">
+      <span class="label">Months</span>
+      <span class="row" id="chips"></span>
+    </div>
+    <div class="row">
+      <span class="label">Quick pick</span>
+      <button class="chip preset" data-p="all">All</button>
+      <button class="chip preset" data-p="q1">Q1</button>
+      <button class="chip preset" data-p="q2">Q2</button>
+      <button class="chip preset" data-p="q3">Q3</button>
+      <button class="chip preset" data-p="last3">Last 3</button>
+      <button class="chip preset" data-p="top">Best 5 by fuel %</button>
+    </div>
+    <div class="row">
+      <span class="label">Alert line</span>
+      <div class="slider">
+        <input type="range" id="thr" min="15" max="50" step="0.5" value="35" aria-label="Fuel percent alert threshold">
+        <span class="val" id="thrVal">35%</span>
+      </div>
+      <span class="sub" style="margin:0;font-size:13px">Months above this fuel share are flagged red.</span>
+    </div>
+    <div class="row">
+      <span class="label">Add month</span>
+      <form class="addform" id="addForm">
+        <select id="addMonth" aria-label="Month to add"></select>
+        <input id="addSales" type="number" min="0" step="any" placeholder="Sales" aria-label="Sales">
+        <input id="addFuel" type="number" min="0" step="any" placeholder="Fuel cost" aria-label="Fuel cost">
+        <button class="btn" type="submit">Add to analysis</button>
+        <button class="btn ghost" type="button" id="resetBtn">Reset data</button>
+        <span class="msg" id="msg" role="status"></span>
+      </form>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="Key figures"></section>
+
+  <section class="grid">
+    <div class="card s8">
+      <h2>Sales, fuel cost and fuel share</h2>
+      <p class="note">Bars show amounts. The line shows fuel as a percent of sales (right axis).</p>
+      <div class="ch tall"><canvas id="cCombo"></canvas></div>
+    </div>
+    <div class="card s4">
+      <h2>Where each sales unit goes</h2>
+      <p class="note">Selected months combined.</p>
+      <div class="donut-wrap"><canvas id="cDonut"></canvas>
+        <div class="donut-center"><b id="dPct">0%</b><span>goes to fuel</span></div>
+      </div>
+    </div>
+
+    <div class="card s7">
+      <h2>Fuel share trend against the alert line</h2>
+      <p class="note">Dashed orange is the average of selected months. Dashed red is your alert line.</p>
+      <div class="ch"><canvas id="cTrend"></canvas></div>
+    </div>
+    <div class="card s5">
+      <h2>Months ranked by fuel share</h2>
+      <p class="note">Highest at the top.</p>
+      <div class="ch"><canvas id="cRank"></canvas></div>
+    </div>
+
+    <div class="card s7">
+      <h2>Does fuel move with sales?</h2>
+      <p class="note" id="scNote"></p>
+      <div class="ch"><canvas id="cScatter"></canvas></div>
+    </div>
+    <div class="card s5">
+      <h2>Margin left after fuel</h2>
+      <p class="note">Sales minus fuel cost, per month.</p>
+      <div class="ch"><canvas id="cMargin"></canvas></div>
+    </div>
+
+    <div class="card s12">
+      <h2>What the numbers say</h2>
+      <div class="insights" id="insights"></div>
+    </div>
+
+    <div class="card s12">
+      <h2>Month detail</h2>
+      <p class="note">Click a column heading to sort.</p>
+      <div class="tablewrap"><table id="tbl"></table></div>
+    </div>
+  </section>
+  <footer>Fuel % = fuel cost / sales. Margin after fuel = sales minus fuel cost, before other costs. Amounts are shown as entered.</footer>
+</div>
+
+<script>
+const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const SEED=[[1546697,426733],[1002300,408091],[945410,383763],[902266,315413],[1659123,368142],[1805772,532600],[1237283,369896],[1434400,558379],[1412800,528024],[1420600,537745]];
+let data=MONTHS.map((m,i)=>SEED[i]?{m,s:SEED[i][0],f:SEED[i][1]}:{m,s:null,f:null});
+let active=new Set(MONTHS.filter((m,i)=>SEED[i]));
+let thr=35, sortKey='idx', sortDir=1;
+
+const C={cyan:'#22d3ee',orange:'#ff9f43',pink:'#ff4fa3',lime:'#a3e635',violet:'#8b7cff',red:'#ff5d6c',text:'#f1efff',muted:'#a9a4d8',grid:'rgba(139,124,255,.16)'};
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+const short=n=>Math.abs(n)>=1e6?(n/1e6).toFixed(2)+'M':Math.round(n/1e3)+'K';
+const pc=d=>d.f/d.s*100;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+Chart.defaults.color=C.muted;
+Chart.defaults.font.family="'DM Sans', system-ui, sans-serif";
+Chart.defaults.borderColor=C.grid;
+if(reduce) Chart.defaults.animation=false;
+Chart.defaults.plugins.legend.labels.usePointStyle=true;
+Chart.defaults.plugins.tooltip.backgroundColor='#0c0a1f';
+Chart.defaults.plugins.tooltip.borderColor='#2f2a6b';
+Chart.defaults.plugins.tooltip.borderWidth=1;
+Chart.defaults.plugins.tooltip.padding=10;
+
+const rowsNow=()=>data.filter(d=>d.s!=null&&active.has(d.m));
+const flag=p=>p>thr?C.red:p>thr-5?C.orange:C.lime;
+
+/* ---------- controls ---------- */
+function buildChips(){
+  const box=document.getElementById('chips');box.innerHTML='';
+  MONTHS.forEach(m=>{
+    const d=data.find(x=>x.m===m);const has=d.s!=null;
+    const b=document.createElement('button');b.className='chip';b.textContent=m;b.disabled=!has;
+    b.setAttribute('aria-pressed',has&&active.has(m));
+    b.onclick=()=>{active.has(m)?active.delete(m):active.add(m);if(!active.size)active.add(m);render()};
+    box.appendChild(b);
+  });
+  const sel=document.getElementById('addMonth');sel.innerHTML='';
+  data.filter(d=>d.s==null).forEach(d=>{const o=document.createElement('option');o.textContent=d.m;sel.appendChild(o)});
+}
+document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{
+  const have=data.filter(d=>d.s!=null).map(d=>d.m);const p=b.dataset.p;
+  let pick=have;
+  if(p==='q1')pick=have.filter(m=>MONTHS.indexOf(m)<3);
+  if(p==='q2')pick=have.filter(m=>{const i=MONTHS.indexOf(m);return i>=3&&i<6});
+  if(p==='q3')pick=have.filter(m=>{const i=MONTHS.indexOf(m);return i>=6&&i<9});
+  if(p==='last3')pick=have.slice(-3);
+  if(p==='top')pick=data.filter(d=>d.s!=null).sort((a,b)=>pc(a)-pc(b)).slice(0,5).map(d=>d.m);
+  if(!pick.length)return;
+  active=new Set(pick);render();
+});
+document.getElementById('thr').oninput=e=>{thr=+e.target.value;document.getElementById('thrVal').textContent=thr+'%';render()};
+document.getElementById('addForm').onsubmit=e=>{
+  e.preventDefault();
+  const m=document.getElementById('addMonth').value,s=+document.getElementById('addSales').value,f=+document.getElementById('addFuel').value,msg=document.getElementById('msg');
+  if(!m){msg.textContent='All 12 months already have data.';return}
+  if(!(s>0)||!(f>=0)){msg.textContent='Enter sales above zero and a fuel cost of zero or more.';return}
+  const d=data.find(x=>x.m===m);d.s=s;d.f=f;active.add(m);msg.textContent='';
+  document.getElementById('addSales').value='';document.getElementById('addFuel').value='';render();
+};
+document.getElementById('resetBtn').onclick=()=>{
+  data=MONTHS.map((m,i)=>SEED[i]?{m,s:SEED[i][0],f:SEED[i][1]}:{m,s:null,f:null});
+  active=new Set(MONTHS.filter((m,i)=>SEED[i]));document.getElementById('msg').textContent='';render();
+};
+
+/* ---------- charts ---------- */
+const scaleY=(extra={})=>Object.assign({grid:{color:C.grid},ticks:{callback:v=>short(v)}},extra);
+const charts={};
+function mk(id,cfg){charts[id]=new Chart(document.getElementById(id),cfg)}
+function init(){
+  mk('cCombo',{data:{labels:[],datasets:[
+    {type:'bar',label:'Sales',data:[],backgroundColor:C.cyan,borderRadius:6,yAxisID:'y',order:2},
+    {type:'bar',label:'Fuel cost',data:[],backgroundColor:C.orange,borderRadius:6,yAxisID:'y',order:2},
+    {type:'line',label:'Fuel % of sales',data:[],borderColor:C.pink,backgroundColor:C.pink,borderWidth:3,tension:.35,pointRadius:5,pointHoverRadius:8,yAxisID:'y1',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    scales:{y:scaleY(),y1:{position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>v+'%',color:C.pink},suggestedMin:0},x:{grid:{display:false}}},
+    plugins:{tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='y1'?` Fuel share: ${c.parsed.y.toFixed(1)}%`:` ${c.dataset.label}: ${fmt(c.parsed.y)}`}}}}});
+
+  mk('cDonut',{type:'doughnut',data:{labels:['Fuel cost','Left after fuel'],datasets:[{data:[0,0],backgroundColor:[C.orange,C.cyan],borderColor:'#16133a',borderWidth:4,hoverOffset:10}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.parsed)}`}}}}});
+
+  mk('cTrend',{type:'line',data:{labels:[],datasets:[
+    {label:'Fuel % of sales',data:[],borderColor:C.violet,borderWidth:3,tension:.3,fill:true,backgroundColor:'rgba(139,124,255,.18)',pointRadius:7,pointHoverRadius:10,pointBackgroundColor:[]},
+    {label:'Average',data:[],borderColor:C.orange,borderDash:[6,6],pointRadius:0,borderWidth:2},
+    {label:'Alert line',data:[],borderColor:C.red,borderDash:[2,5],pointRadius:0,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    scales:{y:{ticks:{callback:v=>v+'%'},grid:{color:C.grid},suggestedMin:15},x:{grid:{display:false}}},
+    plugins:{tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}}}});
+
+  mk('cRank',{type:'bar',data:{labels:[],datasets:[{label:'Fuel %',data:[],backgroundColor:[],borderRadius:8}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x.toFixed(1)}% of sales`}}},
+      scales:{x:{ticks:{callback:v=>v+'%'},grid:{color:C.grid},suggestedMin:0},y:{grid:{display:false}}}}});
+
+  mk('cScatter',{type:'scatter',data:{datasets:[
+    {label:'Month',data:[],backgroundColor:C.pink,pointRadius:9,pointHoverRadius:12},
+    {label:'Trend',type:'line',data:[],borderColor:C.lime,borderWidth:3,borderDash:[8,6],pointRadius:0}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    scales:{x:{title:{display:true,text:'Sales',color:C.muted},ticks:{callback:v=>short(v)},grid:{color:C.grid}},y:{title:{display:true,text:'Fuel cost',color:C.muted},ticks:{callback:v=>short(v)},grid:{color:C.grid}}},
+    plugins:{tooltip:{callbacks:{label:c=>c.dataset.label==='Month'?` ${c.raw.m}: sales ${fmt(c.raw.x)}, fuel ${fmt(c.raw.y)}`:' Trend line'}}}}});
+
+  mk('cMargin',{type:'bar',data:{labels:[],datasets:[{label:'After fuel',data:[],backgroundColor:C.lime,borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmt(c.parsed.y)}`}}},
+      scales:{y:scaleY(),x:{grid:{display:false}}}}});
+}
+
+/* ---------- render ---------- */
+function render(){
+  buildChips();
+  const r=rowsNow();
+  const S=r.reduce((a,d)=>a+d.s,0),F=r.reduce((a,d)=>a+d.f,0),avg=F/S*100;
+  const lo=r.reduce((a,d)=>pc(d)<pc(a)?d:a),hi=r.reduce((a,d)=>pc(d)>pc(a)?d:a);
+  const over=r.filter(d=>pc(d)>thr).length;
+  document.getElementById('rangeBadge').textContent=`${r.length} month${r.length>1?'s':''} selected`;
+
+  document.getElementById('kpis').innerHTML=[
+    ['Total sales',fmt(S),`${fmt(S/r.length)} per month`,C.cyan],
+    ['Total fuel cost',fmt(F),`${fmt(F/r.length)} per month`,C.orange],
+    ['Fuel share of sales',avg.toFixed(1)+'%',`${over} of ${r.length} months above ${thr}%`,C.pink],
+    ['Left after fuel',fmt(S-F),`${((S-F)/S*100).toFixed(1)}% of sales`,C.lime],
+    ['Lowest fuel share',pc(lo).toFixed(1)+'%',lo.m+' ('+short(lo.s)+' sales)',C.violet],
+    ['Highest fuel share',pc(hi).toFixed(1)+'%',hi.m+' ('+short(hi.s)+' sales)',C.red]
+  ].map(k=>`<div class="kpi" style="--c:${k[3]}"><div class="k">${k[0]}</div><div class="n">${k[1]}</div><div class="d">${k[2]}</div></div>`).join('');
+
+  const L=r.map(d=>d.m);
+  let c=charts.cCombo;c.data.labels=L;c.data.datasets[0].data=r.map(d=>d.s);c.data.datasets[1].data=r.map(d=>d.f);c.data.datasets[2].data=r.map(pc);c.update();
+
+  c=charts.cDonut;c.data.datasets[0].data=[F,S-F];c.update();
+  document.getElementById('dPct').textContent=avg.toFixed(1)+'%';
+
+  c=charts.cTrend;c.data.labels=L;const t=c.data.datasets;
+  t[0].data=r.map(pc);t[0].pointBackgroundColor=r.map(d=>flag(pc(d)));t[1].data=r.map(()=>avg);t[2].data=r.map(()=>thr);c.update();
+
+  const rk=[...r].sort((a,b)=>pc(b)-pc(a));
+  c=charts.cRank;c.data.labels=rk.map(d=>d.m);c.data.datasets[0].data=rk.map(pc);c.data.datasets[0].backgroundColor=rk.map(d=>flag(pc(d)));c.update();
+
+  // regression of fuel on sales
+  const n=r.length;let slope=0,icpt=F/n,corr=0;
+  if(n>1){
+    const mx=S/n,my=F/n;let sxy=0,sxx=0,syy=0;
+    r.forEach(d=>{sxy+=(d.s-mx)*(d.f-my);sxx+=(d.s-mx)**2;syy+=(d.f-my)**2});
+    slope=sxx?sxy/sxx:0;icpt=my-slope*mx;corr=sxx&&syy?sxy/Math.sqrt(sxx*syy):0;
+  }
+  const xs=r.map(d=>d.s),x0=Math.min(...xs),x1=Math.max(...xs);
+  c=charts.cScatter;c.data.datasets[0].data=r.map(d=>({x:d.s,y:d.f,m:d.m}));
+  c.data.datasets[1].data=n>1?[{x:x0,y:icpt+slope*x0},{x:x1,y:icpt+slope*x1}]:[];c.update();
+  const strength=Math.abs(corr)>.7?'strong':Math.abs(corr)>.4?'moderate':'weak';
+  document.getElementById('scNote').textContent=n>1?`Correlation ${corr.toFixed(2)} (${strength}). Each extra 100,000 in sales comes with about ${fmt(slope*1e5)} more fuel cost.`:'Select two or more months to see the relationship.';
+
+  c=charts.cMargin;c.data.labels=L;c.data.datasets[0].data=r.map(d=>d.s-d.f);c.data.datasets[0].backgroundColor=r.map(d=>d===hi?'#ff8fb8':C.lime);c.update();
+
+  // insights
+  const best=[...r].sort((a,b)=>(b.s-b.f)-(a.s-a.f))[0];
+  const fuelHigh=[...r].sort((a,b)=>b.f-a.f)[0];
+  const half=Math.floor(n/2);
+  let trendTxt='Select at least 4 months to compare the first and second half.';
+  if(n>=4){
+    const a=r.slice(0,half),b=r.slice(n-half);
+    const pa=a.reduce((x,d)=>x+d.f,0)/a.reduce((x,d)=>x+d.s,0)*100,pb=b.reduce((x,d)=>x+d.f,0)/b.reduce((x,d)=>x+d.s,0)*100;
+    trendTxt=`Fuel share moved from ${pa.toFixed(1)}% in the first ${half} months to ${pb.toFixed(1)}% in the last ${half}. ${pb>pa?'It is rising.':'It is falling.'}`;
+  }
+  const saving=S*(avg-pc(lo))/100;
+  document.getElementById('insights').innerHTML=[
+    ['Best month after fuel',`${best.m} left ${fmt(best.s-best.f)} after fuel, at a ${pc(best).toFixed(1)}% fuel share.`,C.lime],
+    ['Costliest fuel month',`${fuelHigh.m} had the largest fuel bill at ${fmt(fuelHigh.f)}, which is ${pc(fuelHigh).toFixed(1)}% of that month's sales.`,C.orange],
+    ['Trend',trendTxt,C.violet],
+    ['Efficiency gap',`${hi.m} used ${(pc(hi)-pc(lo)).toFixed(1)} points more of sales on fuel than ${lo.m}. Running every month at the ${lo.m} rate would have saved about ${fmt(saving)}.`,C.pink],
+    ['Alert line',over?`${over} of ${r.length} months are above ${thr}%: ${r.filter(d=>pc(d)>thr).map(d=>d.m).join(', ')}.`:`No selected month is above ${thr}%.`,C.red]
+  ].map(i=>`<div class="ins" style="--c:${i[2]}"><b>${i[0]}</b>${i[1]}</div>`).join('');
+
+  renderTable(r,S,F,avg);
+}
+
+function renderTable(r,S,F,avg){
+  const prev={};data.filter(d=>d.s!=null).forEach((d,i,a)=>{prev[d.m]=i?a[i-1]:null});
+  let rows=r.map(d=>({d,idx:MONTHS.indexOf(d.m),m:d.m,s:d.s,f:d.f,p:pc(d),mg:d.s-d.f,mom:prev[d.m]?(d.s/prev[d.m].s-1)*100:null}));
+  rows.sort((a,b)=>sortKey==='m'?sortDir*a.m.localeCompare(b.m):sortDir*((a[sortKey]??-1e9)-(b[sortKey]??-1e9)));
+  const H=(k,t)=>`<th data-k="${k}" class="${sortKey===k?'sorted':''}">${t}${sortKey===k?(sortDir>0?' ▲':' ▼'):''}</th>`;
+  document.getElementById('tbl').innerHTML=`<thead><tr>${H('idx','Month')}${H('s','Sales')}${H('f','Fuel cost')}${H('p','Fuel %')}${H('mg','After fuel')}${H('mom','Sales vs prior month')}<th>Status</th></tr></thead><tbody>`+
+    rows.map(o=>{const st=o.p>thr?['hi','Above line']:o.p>thr-5?['mid','Near line']:['ok','Healthy'];
+      const mom=o.mom==null?'<span style="color:var(--muted)">n/a</span>':`<span class="${o.mom>=0?'up':'down'}">${o.mom>=0?'+':''}${o.mom.toFixed(1)}%</span>`;
+      return `<tr><td><b>${o.m}</b></td><td>${fmt(o.s)}</td><td>${fmt(o.f)}</td><td>${o.p.toFixed(1)}%</td><td>${fmt(o.mg)}</td><td>${mom}</td><td><span class="pill ${st[0]}">${st[1]}</span></td></tr>`}).join('')+
+    `</tbody><tfoot><tr><td>Total</td><td>${fmt(S)}</td><td>${fmt(F)}</td><td>${avg.toFixed(1)}%</td><td>${fmt(S-F)}</td><td></td><td></td></tr></tfoot>`;
+  document.querySelectorAll('#tbl th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=k==='idx'||k==='m'?1:-1}render()});
+}
+
+init();render();
+</script>
+</body>
+</html>
